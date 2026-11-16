@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Systemstatus · Concrete</title>
+  <meta name="description" content="Öffentlicher Systemstatus von Concrete App GmbH. Verfügbarkeit der Website, der Produkte und der Drittanbieter.">
+  <meta name="theme-color" content="#000000">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap header-inner">
+      <a class="brand" href="https://concrete.ch/">
+        <img src="logo.svg" alt="Concrete" width="190" height="26">
+      </a>
+      <p class="eyebrow">Systemstatus</p>
+    </div>
+  </header>
+
+  <main id="root" class="wrap">
+    <p class="loading">Status wird geladen …</p>
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <p><a href="https://concrete.ch/">Concrete App GmbH</a></p>
+      <p>Prüfung alle 5 Minuten. Diese Seite aktualisiert sich jede Minute.</p>
+    </div>
+  </footer>
+
+  <div id="tip" class="tip" hidden></div>
+  <script src="app.js"></script>
+</body>
+</html>

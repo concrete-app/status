@@ -1,0 +1,125 @@
+# Public production checks for status.concrete.ch.
+# The monitor workflow reads this file every 5 minutes.
+#
+# HTTP checks: GET, follow redirects, record the final status code and latency.
+#   up        2xx, or a code listed in up_statuses, in under slow_ms (default 3s)
+#   degraded  slower than slow_ms, or a 4xx (the server answered, but not healthy),
+#             or a 2xx whose body does not contain expect_body
+#   down      timeout, connection error, or 5xx, after one retry
+#
+# Upstream checks read a public status API. They do not count toward the banner.
+#
+# Not monitored (see README):
+#   wissensdatenbank.concrete.ch   listed in hosts.ts, no DNS. Live host is below.
+#   assistent.concrete.ch          no DNS and no App Hosting backend yet.
+#   widget.concrete.ch             no DNS. Beta-only chat widget, not a public product host.
+#   concrete.ch/launcher/          production currently serves the marketing homepage.
+#   app.concrete.ch                CNAME to planerhub-d731e.web.app, same site as concrete.ch.
+#   Fastly                         fronts concrete.ch, but its status API returns 403 to bots.
+#   Cloudflare                     not used.
+
+defaults:
+  timeout_sec: 20
+  slow_ms: 3000
+  history_days: 90
+  recent_hours: 48
+  incident_retention_days: 90
+
+sections:
+  - id: platform
+    name: Plattform
+    components:
+      - id: website
+        name: Website
+        description: concrete.ch
+        url: https://concrete.ch/
+        expect_body: Concrete
+      - id: www
+        name: Website (www)
+        description: www.concrete.ch leitet auf concrete.ch weiter
+        url: https://www.concrete.ch/
+        expect_body: Concrete
+      - id: login
+        name: Anmeldung
+        description: Hub, Login und SSO
+        url: https://concrete.ch/login/
+        expect_body: Anmelden
+      - id: tools
+        name: Werkzeuge
+        description: Kostenlose Tools auf concrete.ch
+        url: https://concrete.ch/tools/
+        expect_body: Concrete
+      - id: oereb
+        name: ÖREB-Auszug
+        description: Cloud Function, europe-west6
+        url: https://europe-west6-planerhub-d731e.cloudfunctions.net/oerebExtract
+        # A GET without an EGRID is the healthy response and does not call the canton.
+        up_statuses: [400]
+        expect_body: EGRID
+
+  - id: products
+    name: Produkte
+    components:
+      - id: projektraum
+        name: Projektraum
+        description: projektraum.concrete.ch
+        url: https://projektraum.concrete.ch/
+        expect_body: Projektraum
+      - id: wissensdatenbank
+        name: Wissensdatenbank
+        description: knowledgebase.concrete.ch
+        url: https://knowledgebase.concrete.ch/
+        expect_body: Wissensdatenbank
+
+  - id: dependencies
+    name: Drittanbieter
+    components:
+      - id: firebase
+        name: Firebase
+        provider: firebase
+        counts_overall: false
+        status_url: https://status.firebase.google.com/incidents.json
+        link: https://status.firebase.google.com
+        products:
+          - Hosting
+          - App Hosting
+          - Authentication
+          - Firebase Authentication
+          - Cloud Firestore
+          - Firestore
+          - Cloud Storage for Firebase
+          - Storage
+          - Cloud Functions
+          - Functions
+          - App Check
+      - id: google-cloud
+        name: Google Cloud
+        provider: gcp
+        counts_overall: false
+        status_url: https://status.cloud.google.com/incidents.json
+        link: https://status.cloud.google.com
+        products:
+          - Cloud Run
+          - Cloud Functions
+          - Cloud Firestore
+          - Google Cloud Storage
+          - Cloud Storage
+          - Identity Platform
+      - id: github
+        name: GitHub
+        provider: statuspage
+        counts_overall: false
+        status_url: https://www.githubstatus.com/api/v2/status.json
+        link: https://www.githubstatus.com
+      - id: stripe
+        name: Stripe
+        provider: statuspage
+        counts_overall: false
+        status_url: https://www.stripestatus.com/api/v2/status.json
+        link: https://www.stripestatus.com
+      - id: resend
+        name: Resend
+        provider: statuspage
+        counts_overall: false
+        status_url: https://resend-status.com/api/v2/status.json
+        link: https://resend-status.com
