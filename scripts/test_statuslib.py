@@ -10,6 +10,7 @@ from pathlib import Path
 
 import unittest
 
+from monitor import push_args
 from statuslib import (
     apply_result,
     assert_public_https,
@@ -45,6 +46,24 @@ def http_component(**overrides):
     }
     component.update(overrides)
     return component
+
+
+class PushArgsTests(unittest.TestCase):
+    def test_lease_stays_attached_to_the_flag(self):
+        args = push_args("status-data", "abc123")
+        self.assertEqual(
+            args,
+            [
+                "push",
+                "--force-with-lease=refs/heads/status-data:abc123",
+                "origin",
+                "HEAD:refs/heads/status-data",
+            ],
+        )
+        self.assertNotIn("--force-with-lease", args)
+
+    def test_first_push_has_no_lease(self):
+        self.assertEqual(push_args("status-data", ""), ["push", "origin", "HEAD:refs/heads/status-data"])
 
 
 class ClassifyTests(unittest.TestCase):

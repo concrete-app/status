@@ -64,6 +64,23 @@ def load_previous(repo: Path, branch: str) -> dict | None:
     return json.loads(shown.stdout)
 
 
+def push_args(branch: str, lease: str) -> list[str]:
+    """Build the data-branch push.
+
+    The expected SHA has to sit in the same argument as ``--force-with-lease``.
+    A following argument is parsed as the remote URL, so ``origin`` becomes the
+    refspec and the push never updates ``status-data``.
+    """
+    if lease:
+        return [
+            "push",
+            f"--force-with-lease=refs/heads/{branch}:{lease}",
+            "origin",
+            f"HEAD:refs/heads/{branch}",
+        ]
+    return ["push", "origin", f"HEAD:refs/heads/{branch}"]
+
+
 def publish(document_text: str, repo: Path, branch: str) -> None:
     remote = git(["remote", "get-url", "origin"], repo).stdout.strip()
     if not remote:
@@ -89,19 +106,7 @@ def publish(document_text: str, repo: Path, branch: str) -> None:
         lease = ""
         if listed.returncode == 0 and listed.stdout.strip():
             lease = listed.stdout.split()[0]
-        if lease:
-            git(
-                [
-                    "push",
-                    "--force-with-lease",
-                    f"refs/heads/{branch}:{lease}",
-                    "origin",
-                    f"HEAD:refs/heads/{branch}",
-                ],
-                tmp,
-            )
-        else:
-            git(["push", "origin", f"HEAD:refs/heads/{branch}"], tmp)
+        git(push_args(branch, lease), tmp)
 
 
 def main() -> None:
