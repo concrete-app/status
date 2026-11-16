@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 from datetime import datetime, timedelta, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -10,7 +11,7 @@ from pathlib import Path
 
 import unittest
 
-from monitor import push_args
+from monitor import push_args, redact, remote_with_token
 from statuslib import (
     apply_result,
     assert_public_https,
@@ -64,6 +65,32 @@ class PushArgsTests(unittest.TestCase):
 
     def test_first_push_has_no_lease(self):
         self.assertEqual(push_args("status-data", ""), ["push", "origin", "HEAD:refs/heads/status-data"])
+
+    def test_actions_token_is_added_when_origin_has_no_credentials(self):
+        url = remote_with_token("https://github.com/concrete-app/status", "test-token")
+        self.assertEqual(url, "https://x-access-token:test-token@github.com/concrete-app/status.git")
+
+    def test_authenticated_origin_is_left_unchanged(self):
+        current = "https://x-access-token:already@github.com/concrete-app/status.git"
+        self.assertEqual(remote_with_token(current, "other"), current)
+        self.assertEqual(remote_with_token("https://github.com/concrete-app/status.git", ""), "https://github.com/concrete-app/status.git")
+        dotted = remote_with_token("https://github.com/concrete-app/status.git", "test-token")
+        self.assertEqual(dotted, "https://x-access-token:test-token@github.com/concrete-app/status.git")
+
+    def test_git_errors_do_not_keep_the_token(self):
+        previous = os.environ.get("GITHUB_TOKEN")
+        os.environ["GITHUB_TOKEN"] = "ghs_supersecretvalue"
+        try:
+            message = redact(
+                "fatal: could not read Username for 'https://x-access-token:ghs_supersecretvalue@github.com/concrete-app/status.git'"
+            )
+        finally:
+            if previous is None:
+                os.environ.pop("GITHUB_TOKEN", None)
+            else:
+                os.environ["GITHUB_TOKEN"] = previous
+        self.assertNotIn("ghs_supersecretvalue", message)
+        self.assertIn("REDACTED", message)
 
 
 class ClassifyTests(unittest.TestCase):
