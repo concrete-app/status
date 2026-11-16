@@ -23,18 +23,44 @@ DATA_BRANCH = "status-data"
 
 
 def redact(text: str) -> str:
+    token = os.environ.get("GITHUB_TOKEN", "")
+    if token:
+        text = text.replace(token, "REDACTED")
     text = re.sub(r"x-access-token:[^@\s]+", "x-access-token:REDACTED", text)
-    text = re.sub(r"ghp_[A-Za-z0-9]+", "REDACTED", text)
+    text = re.sub(r"gh[pousr]_[A-Za-z0-9]+", "REDACTED", text)
     text = re.sub(r"github_pat_[A-Za-z0-9_]+", "REDACTED", text)
+    text = re.sub(r"(?i)authorization: basic \S+", "AUTHORIZATION: basic REDACTED", text)
     return text
 
 
+def remote_with_token(remote: str, token: str) -> str:
+    """Add the Actions token when origin is a plain https GitHub URL.
+
+    actions/checkout keeps the token out of `git remote get-url`, so a fresh
+    repository that only copies that URL cannot push.
+    """
+    token = token.strip()
+    if not token or not remote.startswith("https://github.com/"):
+        return remote
+    rest = remote.split("://", 1)[1]
+    host = rest.split("/", 1)[0]
+    if "@" in host:
+        return remote
+    path = rest.split("/", 1)[1].strip("/") if "/" in rest else ""
+    if path.endswith(".git"):
+        path = path[:-4]
+    return f"https://x-access-token:{token}@github.com/{path}.git"
+
+
 def git(args: list[str], cwd: str | Path, check: bool = True) -> subprocess.CompletedProcess:
+    env = os.environ.copy()
+    env["GIT_TERMINAL_PROMPT"] = "0"
     proc = subprocess.run(
         ["git", *args],
         cwd=cwd,
         text=True,
         capture_output=True,
+        env=env,
     )
     if check and proc.returncode != 0:
         message = redact((proc.stderr or proc.stdout or "git failed").strip())
@@ -81,10 +107,23 @@ def push_args(branch: str, lease: str) -> list[str]:
     return ["push", "origin", f"HEAD:refs/heads/{branch}"]
 
 
+def copy_checkout_auth(src: Path, dst: str) -> None:
+    """Reuse the Authorization header actions/checkout stored on this repo."""
+    header = git(
+        ["config", "--local", "--get", "http.https://github.com/.extraheader"],
+        src,
+        check=False,
+    )
+    value = header.stdout.strip() if header.returncode == 0 else ""
+    if value:
+        git(["config", "http.https://github.com/.extraheader", value], dst)
+
+
 def publish(document_text: str, repo: Path, branch: str) -> None:
     remote = git(["remote", "get-url", "origin"], repo).stdout.strip()
     if not remote:
         raise RuntimeError("origin is not configured")
+    remote = remote_with_token(remote, os.environ.get("GITHUB_TOKEN", ""))
     with tempfile.TemporaryDirectory(prefix="status-data-") as tmp:
         git(["init", "-q"], tmp)
         git(["checkout", "--orphan", branch], tmp)
@@ -102,6 +141,7 @@ def publish(document_text: str, repo: Path, branch: str) -> None:
         git(["add", "status.json"], tmp)
         git(["commit", "-q", "-m", "Update status data"], tmp)
         git(["remote", "add", "origin", remote], tmp)
+        copy_checkout_auth(repo, tmp)
         listed = git(["ls-remote", "origin", f"refs/heads/{branch}"], tmp, check=False)
         lease = ""
         if listed.returncode == 0 and listed.stdout.strip():
