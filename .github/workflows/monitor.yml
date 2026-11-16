@@ -1,0 +1,38 @@
+name: Monitor
+
+on:
+  schedule:
+    # Every 5 minutes. GitHub runs scheduled workflows from the default branch only.
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: status-monitor
+  cancel-in-progress: false
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+          fetch-depth: 1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: python -m pip install --disable-pip-version-check pyyaml
+
+      - name: Unit tests
+        run: python -m unittest test_statuslib
+        working-directory: scripts
+
+      - name: Check components and publish
+        run: python scripts/monitor.py --push
